@@ -1,5 +1,6 @@
 <resources>
 <!--    TODO: Before you run your application, you need a Google Maps API key.-->
 <!--    In order for this project to work, please put MAPS_API_KEY=<your api key> in local.properties file.-->
-    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">BuildConfig.API_KEY</string>
+<!--    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">BuildConfig.API_KEY</string>-->
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyB9xDKR6AiQZREss4-s52aMpE-Dm-6Bgbs</string>
 </resources>
