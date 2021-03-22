@@ -28,6 +28,7 @@ import com.udacity.project4.databinding.FragmentSelectLocationBinding
 import com.udacity.project4.locationreminders.savereminder.SaveReminderViewModel
 import com.udacity.project4.utils.setDisplayHomeAsUpEnabled
 import org.koin.android.ext.android.inject
+import java.util.*
 
 class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
 
@@ -83,26 +84,39 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
         //         and navigate back to the previous fragment to save the reminder and add the geofence
     }
 
+    private fun setMapLongClick(map:GoogleMap) {
+        map.setOnMapClickListener { latLng ->
+            map.clear()
+            val snippet = String.format(
+                    Locale.getDefault(),
+                    "Lat: %1$.5f, Long: %2$.5f",
+                    latLng.latitude,
+                    latLng.longitude
+            )
+            map.addMarker(
+                    MarkerOptions()
+                            .position(latLng)
+                            .title(getString(R.string.dropped_pin))
+                            .snippet(snippet)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+            )
+        }
+    }
+
+    private fun setPoiClick(map: GoogleMap) {
+        map.setOnPoiClickListener { poi ->
+            map.clear()
+            val poiMarker = map.addMarker(
+                    MarkerOptions()
+                            .position(poi.latLng)
+                            .title(poi.name)
+            )
+            poiMarker.showInfoWindow()
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private fun zoomUser() {
-        // The following LocationCallback and LocationRequest code  was put in to correct
-        // blue dot and my location button not working first time after location permission granted
-        // The code works, but has been moved to onRequestPermissionResults so it's only called
-        // the first time user grants location permission
-//        locationCallback = object : LocationCallback() {
-//            override fun onLocationResult(locationResult: LocationResult?) {
-//                super.onLocationResult(locationResult)
-//            }
-//        }
-//
-//        with(LocationRequest()) {
-//            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-//            interval = 0
-//            fastestInterval = 0
-//            numUpdates = 1
-//            fusedLocationProviderClient.requestLocationUpdates(this, locationCallback, Looper.myLooper())
-//        }
-
         fusedLocationProviderClient
             .lastLocation.addOnSuccessListener { lastKnownLocation ->
                 if (lastKnownLocation != null) {
@@ -112,22 +126,6 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                             lastKnownLocation.longitude), 15f))
                 } else {
                     Log.i("zoomUser", "lastKnownLocation is null!")
-                // The following LocationCallback and LocationRequest code  was put in to correct
-                // blue dot and my location button not working first time after location permission granted
-                // The code isn't being called because lastKnownLocation isn't null
-//                    locationCallback = object : LocationCallback() {
-//                        override fun onLocationResult(locationResult: LocationResult?) {
-//                            super.onLocationResult(locationResult)
-//                        }
-//                    }
-//
-//                    with(LocationRequest()) {
-//                        priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-//                        interval = 0
-//                        fastestInterval = 0
-//                        numUpdates = 1
-//                        fusedLocationProviderClient.requestLocationUpdates(this, locationCallback, Looper.myLooper())
-//                    }
                 }
         }
     }
@@ -145,58 +143,6 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                 Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
-    override fun onMapReady(googleMap: GoogleMap) {
-        map = googleMap
-
-        if (isPermissionGranted()) {
-            if (ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(requireActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                //return
-                Log.i("onMapReady", "This should never be called!")
-            }
-            map.setMyLocationEnabled(true)
-            zoomUser()
-        } else {
-            zoomDefault()
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_LOCATION_PERMISSION) {
-            if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                locationPermissionGranted = true
-
-                // Note: the rest of the code in this 'if' block is need to allow blue dot and my
-                // location button to work the first time location permission is granted
-                locationCallback = object : LocationCallback() {
-                    override fun onLocationResult(locationResult: LocationResult?) {
-                        super.onLocationResult(locationResult)
-                    }
-
-                }
-
-                with(LocationRequest()) {
-                    priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-                    interval = 0
-                    fastestInterval = 0
-                    numUpdates = 1
-                    fusedLocationProviderClient.requestLocationUpdates(this, locationCallback, Looper.myLooper())
-                }
-
-            }
-            mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-            mapFragment.getMapAsync(this)
-        }
-    }
-
     private fun checkLocationPermission() {
         if (isPermissionGranted()) {
             locationPermissionGranted = true
@@ -210,12 +156,58 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
         }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+    @SuppressLint("MissingPermission")
+    override fun onMapReady(googleMap: GoogleMap) {
+        map = googleMap
+
+        setMapLongClick(map)
+        setPoiClick(map)
+
+//        if (isPermissionGranted()) {
+        if (locationPermissionGranted) {
+            map.setMyLocationEnabled(true)
+            zoomUser()
+        } else {
+            zoomDefault()
+        }
+
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LOCATION_PERMISSION) {
+            if (grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                locationPermissionGranted = true
+
+                Log.i("onRequestPermissions", "Blue dot fix called!")
+                // Note: the rest of the code in this 'if' block is need to allow blue dot and My
+                // location button to work the first time location permission is granted
+                locationCallback = object : LocationCallback() {
+                    override fun onLocationResult(locationResult: LocationResult?) {
+                        super.onLocationResult(locationResult)
+                    }
+                }
+
+                with(LocationRequest()) {
+                    priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+                    interval = 0
+                    fastestInterval = 0
+//                    numUpdates = 1
+                    fusedLocationProviderClient.requestLocationUpdates(this, locationCallback, Looper.myLooper())
+                }
+
+            }
+            mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
+            mapFragment.getMapAsync(this)
+        }
+    }
+
+   override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
         inflater.inflate(R.menu.map_options, menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem) = when (item.itemId) {
-        // TODO: Change the map type based on the user's selection.
         R.id.normal_map -> {
             map.mapType = GoogleMap.MAP_TYPE_NORMAL
             true
