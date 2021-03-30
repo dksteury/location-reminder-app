@@ -3,24 +3,18 @@ package com.udacity.project4.locationreminders.savereminder.selectreminderlocati
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.content.Intent
-import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import android.view.*
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.databinding.DataBindingUtil
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
-import com.google.android.material.snackbar.Snackbar
 import com.udacity.project4.R
 import com.udacity.project4.base.BaseFragment
 import com.udacity.project4.base.NavigationCommand
@@ -45,6 +39,9 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
 
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
+
+    private var selectedPOI : PointOfInterest? = null
+    private var selectedLatLong : LatLng? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -73,7 +70,13 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
 
 
 //        TODO: call this function after the user confirms on the selected location
-        onLocationSelected()
+        binding.buttonSaveLocation.setOnClickListener {
+            if (selectedLatLong == null) {
+                _viewModel.showErrorMessage.postValue(getString(R.string.select_location_or_poi))
+            } else {
+                onLocationSelected()
+            }
+        }
 
         return binding.root
     }
@@ -82,11 +85,42 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
         //        TODO: When the user confirms on the selected location,
         //         send back the selected location details to the view model
         //         and navigate back to the previous fragment to save the reminder and add the geofence
+        if (selectedPOI == null) {
+            Log.i("onLocationSelected", "selectedPOI == null")
+            _viewModel.reminderSelectedLocationStr.value = getString(R.string.dropped_pin)
+        } else {
+            Log.i("onLocationSelected", "selectedPOI != null")
+            _viewModel.selectedPOI.value = selectedPOI
+            _viewModel.reminderSelectedLocationStr.value = selectedPOI?.name
+        }
+        _viewModel.latitude.value = selectedLatLong?.latitude
+        _viewModel.longitude.value = selectedLatLong?.longitude
+        _viewModel.navigationCommand.postValue(NavigationCommand.Back)
     }
 
-    private fun setMapLongClick(map:GoogleMap) {
+    private fun setMapStyle(map: GoogleMap) {
+        try {
+            // Customize the styling of the base map using a JSON object defined
+            // in a raw resource file.
+            val success = map.setMapStyle(
+                MapStyleOptions.loadRawResourceStyle(
+                    context,
+                    R.raw.map_style
+                )
+            )
+            if (!success) {
+                Log.e("setMapStyle", "Style parsing failed.")
+            }
+        }
+        catch (e: Resources.NotFoundException) {
+            Log.e("setMapStyle", "Can't find style. Error: ", e)
+        }
+    }
+    private fun setMapClick(map:GoogleMap) {
         map.setOnMapClickListener { latLng ->
             map.clear()
+            selectedLatLong = latLng
+            selectedPOI = null
             val snippet = String.format(
                     Locale.getDefault(),
                     "Lat: %1$.5f, Long: %2$.5f",
@@ -98,7 +132,7 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                             .position(latLng)
                             .title(getString(R.string.dropped_pin))
                             .snippet(snippet)
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
             )
         }
     }
@@ -106,10 +140,13 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     private fun setPoiClick(map: GoogleMap) {
         map.setOnPoiClickListener { poi ->
             map.clear()
+            selectedPOI = poi
+            selectedLatLong = poi.latLng
             val poiMarker = map.addMarker(
                     MarkerOptions()
                             .position(poi.latLng)
                             .title(poi.name)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE))
             )
             poiMarker.showInfoWindow()
         }
@@ -128,14 +165,6 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                     Log.i("zoomUser", "lastKnownLocation is null!")
                 }
         }
-    }
-
-    private fun zoomDefault() {
-        val latitude = 29.7604
-        val longitude = -95.3698
-        val zoomLevel = 10f
-        val defaultLatLng = LatLng(latitude, longitude)
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(defaultLatLng, zoomLevel))
     }
 
     private fun isPermissionGranted() : Boolean {
@@ -160,17 +189,15 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         map = googleMap
 
-        setMapLongClick(map)
-        setPoiClick(map)
+        setMapStyle(map)
 
-//        if (isPermissionGranted()) {
         if (locationPermissionGranted) {
+            setMapClick(map)
+            setPoiClick(map)
             map.setMyLocationEnabled(true)
             zoomUser()
-        } else {
-            zoomDefault()
+            _viewModel.showToast.postValue(getString(R.string.select_location_or_poi))
         }
-
     }
 
     @SuppressLint("MissingPermission")
@@ -197,6 +224,8 @@ class SelectLocationFragment : BaseFragment(), OnMapReadyCallback {
                     fusedLocationProviderClient.requestLocationUpdates(this, locationCallback, Looper.myLooper())
                 }
 
+            }else {
+                _viewModel.showErrorMessage.postValue(getString(R.string.permission_denied_explanation))
             }
             mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
             mapFragment.getMapAsync(this)
