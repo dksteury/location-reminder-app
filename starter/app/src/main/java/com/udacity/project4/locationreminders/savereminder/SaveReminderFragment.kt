@@ -42,8 +42,7 @@ class SaveReminderFragment : BaseFragment() {
     private val geofencePendingIntent: PendingIntent by lazy {
         val intent = Intent(requireContext(), GeofenceBroadcastReceiver::class.java)
         intent.action = ACTION_GEOFENCE_EVENT
-//        PendingIntent.getBroadcast(requireContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
-        PendingIntent.getBroadcast(requireActivity(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        PendingIntent.getBroadcast(requireContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
     }
 
     override fun onCreateView(
@@ -51,8 +50,7 @@ class SaveReminderFragment : BaseFragment() {
         savedInstanceState: Bundle?
     ): View? {
 
-//        geofencingClient = LocationServices.getGeofencingClient(requireContext())
-        geofencingClient = LocationServices.getGeofencingClient(requireActivity())
+        geofencingClient = LocationServices.getGeofencingClient(requireContext())
 
         binding =
             DataBindingUtil.inflate(inflater, R.layout.fragment_save_reminder, container, false)
@@ -86,9 +84,7 @@ class SaveReminderFragment : BaseFragment() {
             reminderDataItem = ReminderDataItem(title, description, location, latitude, longitude)
 
             if (_viewModel.validateEnteredData(reminderDataItem)) {
-//                _viewModel.showToast.postValue("Valid Reminder Data Entered! $reminderDataItem")
                 checkPermissionsAndStartGeofencing()
-//                _viewModel.validateAndSaveReminder(reminderDataItem)
             }
         }
     }
